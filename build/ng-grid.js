@@ -2,7 +2,7 @@
 * ng-grid JavaScript Library
 * Authors: https://github.com/angular-ui/ng-grid/blob/master/README.md 
 * License: MIT (http://www.opensource.org/licenses/mit-license.php)
-* Compiled At: 02/25/2014 11:25
+* Compiled At: 03/05/2014 10:45
 ***********************************************/
 (function(window, $) {
 'use strict';
@@ -431,20 +431,7 @@ angular.module('ngGrid.services').factory('$sortService', ['$parse', function($p
                 sortFn = sortService.getSortFn(col, d);
                 var propA = $parse(order[indx])(itemA);
                 var propB = $parse(order[indx])(itemB);
-                if ((!propA && propA !== 0) || (!propB && propB !== 0)) {
-                    if (!propB && !propA) {
-                        tem = 0;
-                    }
-                    else if (!propA) {
-                        tem = 1;
-                    }
-                    else if (!propB) {
-                        tem = -1;
-                    }
-                }
-                else {
-                    tem = sortFn(propA, propB);
-                }
+                tem = sortFn(propA, propB);
                 indx++;
             }
             if (direction === ASC) {
@@ -477,10 +464,32 @@ angular.module('ngGrid.services').factory('$sortService', ['$parse', function($p
                 return sortFn;
             }
             sortFn = sortService.guessSortFn($parse(col.field)(item));
+            var cache = false;
             if (sortFn) {
-                sortService.colSortFnCache[col.field] = sortFn;
+                cache = true;
             } else {
                 sortFn = sortService.sortAlpha;
+            }
+            var currentSortFn = sortFn;
+            sortFn = function(propA, propB) {
+                if ((!propA && propA !== 0) || (!propB && propB !== 0)) {
+                    if (!propB && !propA) {
+                        return 0;
+                    }
+                    else if (!propA) {
+                        return 1;
+                    }
+                    else if (!propB) {
+                        return -1;
+                    }
+                }
+                else {
+                    return currentSortFn(propA, propB);
+                } 
+            };
+
+            if (cache) {
+                sortService.colSortFnCache[col.field] = sortFn;
             }
         }
         return sortFn;
