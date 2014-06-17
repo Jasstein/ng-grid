@@ -1,4 +1,6 @@
-var ngRow = function (entity, config, selectionProvider, rowIndex, $utils) {
+var ngRow = function (entity, expandCallback, config, selectionProvider, rowIndex, $utils, depth, hasChildren, isExpanded) {
+	var row = selectionProvider.getRenderedRow(entity);
+
 	this.entity = entity;
 	this.config = config;
 	this.selectionProvider = selectionProvider;
@@ -10,8 +12,25 @@ var ngRow = function (entity, config, selectionProvider, rowIndex, $utils) {
 	this.afterSelectionChange = config.afterSelectionChangeCallback;
 	this.offsetTop = this.rowIndex * config.rowHeight;
 	this.rowDisplayIndex = 0;
+
+	this.selected = row.selected || false;
+
+	//set information related to hierarchy
+	this.depth = depth;
+	this.expandCallback = expandCallback;
+	this.hasChildren = hasChildren;
+	this.isExpanded = (isExpanded || row.isExpanded) || false;
+
 };
 
+ngRow.prototype.toggleExpand = function () {
+	this.isExpanded = this.isExpanded ? false : true;
+	if (this.orig) {
+		this.orig.isExpanded = this.isExpanded;
+	}
+	//callback to refresh the renderedRows
+	this.expandCallback();
+};
 ngRow.prototype.setSelection = function (isSelected) {
 	this.selectionProvider.setSelection(this, isSelected);
 	this.selectionProvider.lastClickedRow = this;
@@ -60,7 +79,7 @@ ngRow.prototype.getProperty = function (path) {
 	return this.utils.evalProperty(this.entity, path);
 };
 ngRow.prototype.copy = function () {
-	this.clone = new ngRow(this.entity, this.config, this.selectionProvider, this.rowIndex, this.utils);
+	this.clone = new ngRow(this.entity, this.expandCallback, this.config, this.selectionProvider, this.rowIndex, this.utils, this.depth, this.hasChildren, this.isExpanded);
 	this.clone.isClone = true;
 	this.clone.elm = this.elm;
 	this.clone.orig = this;
@@ -70,5 +89,5 @@ ngRow.prototype.setVars = function (fromRow) {
 	fromRow.clone = this;
 	this.entity = fromRow.entity;
 	this.selected = fromRow.selected;
-    this.orig = fromRow;
+	this.orig = fromRow;
 };
