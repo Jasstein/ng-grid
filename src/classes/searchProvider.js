@@ -158,7 +158,6 @@ var ngSearchProvider = function ($scope, grid, $filter, sortService) {
             currentDepth--;
         }
 
-        grid.rowFactory.filteredRowsChanged();        
         grid.rowFactory.filteredRowsChanged();
     };
 
