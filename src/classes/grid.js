@@ -707,25 +707,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     };
     self.sortActual = function() {
         if (!self.config.useExternalSorting) {
-            var tempData = self.data.slice(0);
-            angular.forEach(tempData, function(item, i) {
-                var e = self.rowMap[i];
-                if (e !== undefined) {
-                    var v = self.rowCache[e];
-                    if (v !== undefined) {
-                        item.preSortSelected = v.selected;
-                        item.preSortIndex = i;
-                    }
-                }
-            });
-            sortService.Sort(self.config.sortInfo, tempData);
-            angular.forEach(tempData, function(item, i) {
-                self.rowCache[i].entity = item;
-                self.rowCache[i].selected = item.preSortSelected;
-                self.rowMap[item.preSortIndex] = i;
-                delete item.preSortSelected;
-                delete item.preSortIndex;
-            });
+            self.rowCache = sortService.Sort(self.config.sortInfo, self.rowCache.slice(0));
         }
     };
 
@@ -823,7 +805,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 var w = col.width + colwidths;
                 if (col.pinned) {
                     addCol(col);
-                    var newLeft = i > 0 ? (scrollLeft + totalLeft) : scrollLeft;
+                    var newLeft = scrollLeft + totalLeft;
                     domUtilityService.setColLeft(col, newLeft, self);
                     totalLeft += col.width;
                 } else {
