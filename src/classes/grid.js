@@ -269,7 +269,22 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 return !e[NG_HIDDEN];
             }).length * self.config.rowHeight;
         } else {
-            calculatedHeight = self.filteredRows.length * self.config.rowHeight;
+            var visibleRowCount = 0;
+            var rowIndex = 0;
+            while (rowIndex < self.filteredRows.length) {
+                var row = self.filteredRows[rowIndex];
+                ++visibleRowCount;
+                ++rowIndex;
+
+                //if the row has children and is collapsed, skip children (rows with greater depth)
+                if (row.isExpanded === false) {
+                    while(self.filteredRows[rowIndex] && self.filteredRows[rowIndex].depth > row.depth) {
+                        ++rowIndex;
+                    }
+                }
+            }    
+
+            calculatedHeight = visibleRowCount * self.config.rowHeight;
         }
         return calculatedHeight;
     };
@@ -284,27 +299,36 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     //self funcs
     self.setRenderedRows = function (newRows) {
         $scope.renderedRows.length = newRows.length;
-        for (var i = 0; i < newRows.length; i++) {
-            if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
-                $scope.renderedRows[i] = newRows[i].copy();
-                $scope.renderedRows[i].collapsed = newRows[i].collapsed;
-                if (!newRows[i].isAggRow) {
+        if (newRows.length > 0) {
+            //Since the expanded/collapsed state of parent rows can prevent some rows from being visible,
+            //we need a new 'rendered row index' to render alternating rows correctly
+            //'rowIndex' below is still required for correct navigation with arrow keys
+            var renderedRowIndex = newRows[0].rowIndex;
+
+            for (var i = 0; i < newRows.length; i++) {
+                if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
+                    $scope.renderedRows[i] = newRows[i].copy();
+                    $scope.renderedRows[i].collapsed = newRows[i].collapsed;
+                    if (!newRows[i].isAggRow) {
+                        $scope.renderedRows[i].setVars(newRows[i]);
+                    }
+                } else {
                     $scope.renderedRows[i].setVars(newRows[i]);
                 }
-            } else {
-                $scope.renderedRows[i].setVars(newRows[i]);
-            }
-            $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
-            $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
-            $scope.renderedRows[i].selected = newRows[i].selected;
-            newRows[i].renderedRowIndex = i;
+                $scope.renderedRows[i].renderedRowIndex = renderedRowIndex++;
+                $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
+                $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
+                $scope.renderedRows[i].selected = newRows[i].selected;
+                newRows[i].renderedRowIndex = i;
 
-            //renderedRows reuses the same set of existing ngRow when updating the data,
-            //as for the three line above (rowIndex, offsetTop, selected), we need to
-            //copy over information related to hierarchy in those rows
-            $scope.renderedRows[i].hasChildren = newRows[i].hasChildren;
-            $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
-            $scope.renderedRows[i].depth = newRows[i].depth;
+                //renderedRows reuses the same set of existing ngRow when updating the data,
+                //as for the three line above (rowIndex, offsetTop, selected), we need to
+                //copy over information related to hierarchy in those rows
+                $scope.renderedRows[i].hasChildren = newRows[i].hasChildren;
+                $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
+                $scope.renderedRows[i].depth = newRows[i].depth;
+                $scope.renderedRows[i].isLastChild = newRows[i].isLastChild;
+            }
         }
         self.refreshDomSizes();
         $scope.$emit('ngGridEventRows', newRows);
@@ -547,7 +571,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
             $scope.selectionProvider = new ngSelectionProvider(self, $scope, $parse);
             $scope.domAccessProvider = new ngDomAccessProvider(self);
             self.rowFactory = new ngRowFactory(self, $scope, domUtilityService, rtlUtilityService, $templateCache, $utils);
-            self.searchProvider = new ngSearchProvider($scope, self, $filter);
+            self.searchProvider = new ngSearchProvider($scope, self, $filter, sortService);
             self.styleProvider = new ngStyleProvider($scope, self);
             $scope.$watch('configGroups', function(a) {
               var tempArr = [];
@@ -683,25 +707,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     };
     self.sortActual = function() {
         if (!self.config.useExternalSorting) {
-            var tempData = self.data.slice(0);
-            angular.forEach(tempData, function(item, i) {
-                var e = self.rowMap[i];
-                if (e !== undefined) {
-                    var v = self.rowCache[e];
-                    if (v !== undefined) {
-                        item.preSortSelected = v.selected;
-                        item.preSortIndex = i;
-                    }
-                }
-            });
-            sortService.Sort(self.config.sortInfo, tempData);
-            angular.forEach(tempData, function(item, i) {
-                self.rowCache[i].entity = item;
-                self.rowCache[i].selected = item.preSortSelected;
-                self.rowMap[item.preSortIndex] = i;
-                delete item.preSortSelected;
-                delete item.preSortIndex;
-            });
+            self.rowCache = sortService.Sort(self.config.sortInfo, self.rowCache.slice(0));
         }
     };
 
@@ -799,7 +805,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 var w = col.width + colwidths;
                 if (col.pinned) {
                     addCol(col);
-                    var newLeft = i > 0 ? (scrollLeft + totalLeft) : scrollLeft;
+                    var newLeft = scrollLeft + totalLeft;
                     domUtilityService.setColLeft(col, newLeft, self);
                     totalLeft += col.width;
                 } else {

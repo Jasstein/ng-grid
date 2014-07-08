@@ -109,7 +109,7 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
     //Does essentially the same thing as self.getSelection above *but* returns
     //the actual ngRow with all its information, not just its selection state.
     self.getRenderedRow = function (entity) {
-        var row = _.find($scope.renderedRows, function(renderedRow) {
+        var row = $.grep($scope.renderedRows, function(renderedRow) {
             if (renderedRow) {
                 return renderedRow.entity === entity;
             }

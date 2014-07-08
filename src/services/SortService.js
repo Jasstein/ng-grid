@@ -83,48 +83,111 @@
     };
     //#endregion
     // the core sorting logic trigger
-    sortService.sortData = function(sortInfo, data /*datasource*/) {
+    sortService.sortData = function(sortInfo, rows) {
+        function sort(data) {
+            var l = sortInfo.fields.length,
+                order = sortInfo.fields,
+                col,
+                direction,
+                // IE9 HACK.... omg, I can't reference data array within the sort fn below. has to be a separate reference....!!!!
+                d = data.slice(0);
+            //now actually sort the data
+            data.sort(function (itemA, itemB) {
+                var tem = 0,
+                    indx = 0,
+                    sortFn;
+                while (tem === 0 && indx < l) {
+                    // grab the metadata for the rest of the logic
+                    col = sortInfo.columns[indx];
+                    direction = sortInfo.directions[indx];
+                    sortFn = sortService.getSortFn(col, d);
+                    
+                    var propA = $parse(order[indx])(itemA.row.entity);
+                    var propB = $parse(order[indx])(itemB.row.entity);
+                    tem = sortFn(propA, propB);
+                    indx++;
+                }
+                //made it this far, we don't have to worry about null & undefined
+                if (direction === ASC) {
+                    return tem;
+                } else {
+                    return 0 - tem;
+                }
+            });
+
+            return data;            
+        }
+
+
         // first make sure we are even supposed to do work
-        if (!data || !sortInfo) {
+        if (!rows || rows.length === 0 || !sortInfo) {
             return;
         }
-        var l = sortInfo.fields.length,
-            order = sortInfo.fields,
-            col,
-            direction,
-            // IE9 HACK.... omg, I can't reference data array within the sort fn below. has to be a separate reference....!!!!
-            d = data.slice(0);
-        //now actually sort the data
-        data.sort(function (itemA, itemB) {
-            var tem = 0,
-                indx = 0,
-                sortFn;
-            while (tem === 0 && indx < l) {
-                // grab the metadata for the rest of the logic
-                col = sortInfo.columns[indx];
-                direction = sortInfo.directions[indx];
-                sortFn = sortService.getSortFn(col, d);
-                
-                var propA = $parse(order[indx])(itemA);
-                var propB = $parse(order[indx])(itemB);
-                tem = sortFn(propA, propB);
-                indx++;
+
+        var maximumRowDepth = sortService.getMaximumRowDepth(rows);
+
+        //start by sorting the top level rows (depth = 0)
+        var sortedRows = sort(sortService.getIndexedRows(rows, 0, 0));
+
+        //for each sorted row, get its direct children (depth+1) and sort/extend sorted rows with those new rows
+        //repeat until all rows have been sorted as part of their parent
+        for (var depth = 0; depth < maximumRowDepth; ++depth) {
+            var newSortedRows = [];
+            for (var index = 0; index < sortedRows.length; ++index) {
+                var parentRow = sortedRows[index];
+
+                newSortedRows.push(parentRow);
+                if (parentRow.row.depth === depth) {
+                    var childRows = sort(sortService.getIndexedRows(rows, depth + 1, parentRow.preSortIndex + 1));
+
+                    newSortedRows = newSortedRows.concat(childRows);
+                }
             }
-            //made it this far, we don't have to worry about null & undefined
-            if (direction === ASC) {
-                return tem;
-            } else {
-                return 0 - tem;
+            //all rows up to (depth+1) have now been sorted
+            sortedRows = newSortedRows;
+        }
+
+        //remove the value/index wrapper and keep only the original row value
+        $.each(sortedRows, function(index, row) {
+            row.row.rowIndex = index;
+            sortedRows[index] = sortedRows[index].row;
+        });
+
+        return sortedRows;
+    };
+    sortService.getMaximumRowDepth = function(rows) {
+        var maximumRowDepth = 0;
+        $.each(rows, function(index, row) {
+            if (row.depth > maximumRowDepth) {
+                maximumRowDepth = row.depth;
             }
         });
+
+        return maximumRowDepth;
+    };
+    sortService.getIndexedRows = function(rows, depth, startIndex) {
+        var resultRows = [];
+        for (var index = startIndex; index < rows.length; ++index) {
+            var row = rows[index];
+            if (row.depth === depth) {
+                resultRows.push({ 'row': row, 'preSortIndex': index });
+            } else if (row.depth < depth) {
+                break;
+            }
+        }
+
+        return resultRows;
     };
     sortService.Sort = function(sortInfo, data) {
         if (sortService.isSorting) {
             return;
         }
-        sortService.isSorting = true;
-        sortService.sortData(sortInfo, data);
-        sortService.isSorting = false;
+        try {
+            sortService.isSorting = true;
+            return sortService.sortData(sortInfo, data);
+        } finally {
+            sortService.isSorting = false;
+        }
     };
     sortService.getSortFn = function(col, data) {
         var sortFn, item;

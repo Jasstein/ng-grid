@@ -2,7 +2,7 @@
 * ng-grid JavaScript Library
 * Authors: https://github.com/angular-ui/ng-grid/blob/master/README.md 
 * License: MIT (http://www.opensource.org/licenses/mit-license.php)
-* Compiled At: 03/28/2014 14:30
+* Compiled At: 07/08/2014 10:31
 ***********************************************/
 (function(window, $) {
 'use strict';
@@ -128,7 +128,40 @@ var ngMoveSelectionHandler = function($scope, elm, evt, grid) {
     }
     
     if (offset) {
-        var r = items[rowIndex + offset];
+        //Arrow up or down has been pressed
+        //Determining what is the next visible row to select.
+        //This operation is done on the rowCache (items), not renderedRows or filteredRows,
+        //so lots of items are not valid selection.
+        var row = items[rowIndex];
+        var r;
+
+        if (offset === 1) { //+1 (going down the list)
+            if (row.isExpanded) {
+                r = items[rowIndex + offset];
+            } else {
+                //find the first non-child row
+                while(items[rowIndex + offset] && items[rowIndex + offset].depth > row.depth) {
+                    ++offset;
+                }
+
+                r = items[rowIndex + offset] || row;
+            }
+        } else { //-1 (going up the list)
+            //start with the next item up the list (might be a parent of the candidate (r))
+            r = items[rowIndex + offset];
+            var index = rowIndex + offset;
+
+            var item = r;
+            while (item.depth !== 0) {
+                item = items[--index];
+                if (item.depth === r.depth - 1) { //it's a parent, process it!
+                    if (!item.isExpanded) { //its child is not visible, it's the new candidate (r)
+                        r = item;
+                    }
+                }
+            }
+        }
+
         if (r && r.beforeSelectionChange(r, evt)) {
             r.continueSelection(evt);
             $scope.$emit('ngGridEventDigestGridParent');
@@ -140,6 +173,22 @@ var ngMoveSelectionHandler = function($scope, elm, evt, grid) {
                 grid.$viewport.scrollTop(grid.$viewport.scrollTop() - $scope.rowHeight);
             }
       }
+    }
+    
+    //try to collapse the row if it's expanded and try to expand the row if it's collapsed
+    var currentRow;
+    if (charCode === 37) {
+        currentRow = items[rowIndex];
+        if (currentRow.isExpanded === true) {
+            currentRow.toggleExpand();
+            $scope.$digest();            
+        }
+    } else if (charCode === 39) {
+        currentRow = items[rowIndex];        
+        if (currentRow.isExpanded === false) {
+            currentRow.toggleExpand();
+            $scope.$digest();            
+        }
     }
     
     if ($scope.enableCellSelection) {
@@ -294,7 +343,7 @@ angular.module('ngGrid.services').factory('$domUtilityService',['$rtlUtilityServ
             "." + gridId + " .ngCanvas { width: " + trw + "px; }" +
             "." + gridId + " .ngHeaderScroller { width: " + ngHeaderScrollerWidth  + "px}";
 
-	//in RTL we need to attach to the right side
+        //in RTL we need to attach to the right side
         var side = rtlUtilityService.isRtl ? 'right' : 'left';
         for (var i = 0; i < cols.length; i++) {
             var col = cols[i];
@@ -322,7 +371,7 @@ angular.module('ngGrid.services').factory('$domUtilityService',['$rtlUtilityServ
     };
     domUtilityService.setColLeft = function(col, colLeft, grid) {
         if (grid.$styleSheet) {
-	    //in RTL we need to attach to the right side
+            //in RTL we need to attach to the right side
             var side = rtlUtilityService.isRtl ? 'right' : 'left';
             var regex = regexCache[col.index];
             if (!regex) {
@@ -398,7 +447,7 @@ angular.module('ngGrid.services').factory('$rtlUtilityService',[function() {
             if(rtlUtilityService.isAxisFlipped) {
                 normalizedScrollLeft = Math.abs(realScrollLeft);
             } else {
-                normalizedScrollLeft = viewport[0].scrollWidth - viewport[0].clientWidth - realScrollLeft
+                normalizedScrollLeft = viewport[0].scrollWidth - viewport[0].clientWidth - realScrollLeft;
             }
         }
         return normalizedScrollLeft;
@@ -492,48 +541,111 @@ angular.module('ngGrid.services').factory('$sortService', ['$parse', function($p
     };
     //#endregion
     // the core sorting logic trigger
-    sortService.sortData = function(sortInfo, data /*datasource*/) {
+    sortService.sortData = function(sortInfo, rows) {
+        function sort(data) {
+            var l = sortInfo.fields.length,
+                order = sortInfo.fields,
+                col,
+                direction,
+                // IE9 HACK.... omg, I can't reference data array within the sort fn below. has to be a separate reference....!!!!
+                d = data.slice(0);
+            //now actually sort the data
+            data.sort(function (itemA, itemB) {
+                var tem = 0,
+                    indx = 0,
+                    sortFn;
+                while (tem === 0 && indx < l) {
+                    // grab the metadata for the rest of the logic
+                    col = sortInfo.columns[indx];
+                    direction = sortInfo.directions[indx];
+                    sortFn = sortService.getSortFn(col, d);
+                    
+                    var propA = $parse(order[indx])(itemA.row.entity);
+                    var propB = $parse(order[indx])(itemB.row.entity);
+                    tem = sortFn(propA, propB);
+                    indx++;
+                }
+                //made it this far, we don't have to worry about null & undefined
+                if (direction === ASC) {
+                    return tem;
+                } else {
+                    return 0 - tem;
+                }
+            });
+
+            return data;            
+        }
+
+
         // first make sure we are even supposed to do work
-        if (!data || !sortInfo) {
+        if (!rows || rows.length === 0 || !sortInfo) {
             return;
         }
-        var l = sortInfo.fields.length,
-            order = sortInfo.fields,
-            col,
-            direction,
-            // IE9 HACK.... omg, I can't reference data array within the sort fn below. has to be a separate reference....!!!!
-            d = data.slice(0);
-        //now actually sort the data
-        data.sort(function (itemA, itemB) {
-            var tem = 0,
-                indx = 0,
-                sortFn;
-            while (tem === 0 && indx < l) {
-                // grab the metadata for the rest of the logic
-                col = sortInfo.columns[indx];
-                direction = sortInfo.directions[indx];
-                sortFn = sortService.getSortFn(col, d);
-                
-                var propA = $parse(order[indx])(itemA);
-                var propB = $parse(order[indx])(itemB);
-                tem = sortFn(propA, propB);
-                indx++;
+
+        var maximumRowDepth = sortService.getMaximumRowDepth(rows);
+
+        //start by sorting the top level rows (depth = 0)
+        var sortedRows = sort(sortService.getIndexedRows(rows, 0, 0));
+
+        //for each sorted row, get its direct children (depth+1) and sort/extend sorted rows with those new rows
+        //repeat until all rows have been sorted as part of their parent
+        for (var depth = 0; depth < maximumRowDepth; ++depth) {
+            var newSortedRows = [];
+            for (var index = 0; index < sortedRows.length; ++index) {
+                var parentRow = sortedRows[index];
+
+                newSortedRows.push(parentRow);
+                if (parentRow.row.depth === depth) {
+                    var childRows = sort(sortService.getIndexedRows(rows, depth + 1, parentRow.preSortIndex + 1));
+
+                    newSortedRows = newSortedRows.concat(childRows);
+                }
             }
-            //made it this far, we don't have to worry about null & undefined
-            if (direction === ASC) {
-                return tem;
-            } else {
-                return 0 - tem;
+            //all rows up to (depth+1) have now been sorted
+            sortedRows = newSortedRows;
+        }
+
+        //remove the value/index wrapper and keep only the original row value
+        $.each(sortedRows, function(index, row) {
+            row.row.rowIndex = index;
+            sortedRows[index] = sortedRows[index].row;
+        });
+
+        return sortedRows;
+    };
+    sortService.getMaximumRowDepth = function(rows) {
+        var maximumRowDepth = 0;
+        $.each(rows, function(index, row) {
+            if (row.depth > maximumRowDepth) {
+                maximumRowDepth = row.depth;
             }
         });
+
+        return maximumRowDepth;
+    };
+    sortService.getIndexedRows = function(rows, depth, startIndex) {
+        var resultRows = [];
+        for (var index = startIndex; index < rows.length; ++index) {
+            var row = rows[index];
+            if (row.depth === depth) {
+                resultRows.push({ 'row': row, 'preSortIndex': index });
+            } else if (row.depth < depth) {
+                break;
+            }
+        }
+
+        return resultRows;
     };
     sortService.Sort = function(sortInfo, data) {
         if (sortService.isSorting) {
             return;
         }
-        sortService.isSorting = true;
-        sortService.sortData(sortInfo, data);
-        sortService.isSorting = false;
+        try {
+            sortService.isSorting = true;
+            return sortService.sortData(sortInfo, data);
+        } finally {
+            sortService.isSorting = false;
+        }
     };
     sortService.getSortFn = function(col, data) {
         var sortFn, item;
@@ -1034,10 +1146,22 @@ var ngEventProvider = function (grid, $scope, domUtilityService, $timeout) {
                 grid.$topPanel.on('drop', '.ngHeaderScroller', self.onHeaderDrop);
             }
         }
+        
+        // Only allow dragging if the grid is configured for it.  Otherwise you can drag the column and do
+        // nothing with it.
         $scope.$watch('renderedColumns', function() {
-            $timeout(self.setDraggables);
+            if (grid.config.enableColumnReordering ||
+                grid.config.showGroupPanel ||
+                grid.config.jqueryUIDraggable) {
+                // Don't $apply after setting the draggables.  With large scopes, and lots of grids, the performance
+                // is horrible!
+                // 2nd param is to use the default timeout for setTimeout
+                // 3rd param is to not call $scope.$apply, since it doesn't appear to be needed
+                $timeout(self.setDraggables, undefined, false);
+            }
         });
     };
+    
     self.dragStart = function(evt){
       //FireFox requires there to be dataTransfer if you want to drag and drop.
       evt.dataTransfer.setData('text', ''); //cannot be empty string
@@ -1351,6 +1475,9 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
         //Enables or disables text highlighting in grid by adding the "unselectable" class (See CSS file)
         enableHighlighting: false,
         
+        //Defining the property containing the child items (hierarchical data structure)
+        entryChildProperty: undefined,
+
         // string list of properties to exclude when auto-generating columns.
         excludeProperties: [],
         
@@ -1550,7 +1677,22 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 return !e[NG_HIDDEN];
             }).length * self.config.rowHeight;
         } else {
-            calculatedHeight = self.filteredRows.length * self.config.rowHeight;
+            var visibleRowCount = 0;
+            var rowIndex = 0;
+            while (rowIndex < self.filteredRows.length) {
+                var row = self.filteredRows[rowIndex];
+                ++visibleRowCount;
+                ++rowIndex;
+
+                //if the row has children and is collapsed, skip children (rows with greater depth)
+                if (row.isExpanded === false) {
+                    while(self.filteredRows[rowIndex] && self.filteredRows[rowIndex].depth > row.depth) {
+                        ++rowIndex;
+                    }
+                }
+            }    
+
+            calculatedHeight = visibleRowCount * self.config.rowHeight;
         }
         return calculatedHeight;
     };
@@ -1565,20 +1707,36 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     //self funcs
     self.setRenderedRows = function (newRows) {
         $scope.renderedRows.length = newRows.length;
-        for (var i = 0; i < newRows.length; i++) {
-            if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
-                $scope.renderedRows[i] = newRows[i].copy();
-                $scope.renderedRows[i].collapsed = newRows[i].collapsed;
-                if (!newRows[i].isAggRow) {
+        if (newRows.length > 0) {
+            //Since the expanded/collapsed state of parent rows can prevent some rows from being visible,
+            //we need a new 'rendered row index' to render alternating rows correctly
+            //'rowIndex' below is still required for correct navigation with arrow keys
+            var renderedRowIndex = newRows[0].rowIndex;
+
+            for (var i = 0; i < newRows.length; i++) {
+                if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
+                    $scope.renderedRows[i] = newRows[i].copy();
+                    $scope.renderedRows[i].collapsed = newRows[i].collapsed;
+                    if (!newRows[i].isAggRow) {
+                        $scope.renderedRows[i].setVars(newRows[i]);
+                    }
+                } else {
                     $scope.renderedRows[i].setVars(newRows[i]);
                 }
-            } else {
-                $scope.renderedRows[i].setVars(newRows[i]);
+                $scope.renderedRows[i].renderedRowIndex = renderedRowIndex++;
+                $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
+                $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
+                $scope.renderedRows[i].selected = newRows[i].selected;
+                newRows[i].renderedRowIndex = i;
+
+                //renderedRows reuses the same set of existing ngRow when updating the data,
+                //as for the three line above (rowIndex, offsetTop, selected), we need to
+                //copy over information related to hierarchy in those rows
+                $scope.renderedRows[i].hasChildren = newRows[i].hasChildren;
+                $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
+                $scope.renderedRows[i].depth = newRows[i].depth;
+                $scope.renderedRows[i].isLastChild = newRows[i].isLastChild;
             }
-            $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
-            $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
-            $scope.renderedRows[i].selected = newRows[i].selected;
-            newRows[i].renderedRowIndex = i;
         }
         self.refreshDomSizes();
         $scope.$emit('ngGridEventRows', newRows);
@@ -1821,7 +1979,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
             $scope.selectionProvider = new ngSelectionProvider(self, $scope, $parse);
             $scope.domAccessProvider = new ngDomAccessProvider(self);
             self.rowFactory = new ngRowFactory(self, $scope, domUtilityService, rtlUtilityService, $templateCache, $utils);
-            self.searchProvider = new ngSearchProvider($scope, self, $filter);
+            self.searchProvider = new ngSearchProvider($scope, self, $filter, sortService);
             self.styleProvider = new ngStyleProvider($scope, self);
             $scope.$watch('configGroups', function(a) {
               var tempArr = [];
@@ -1957,25 +2115,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     };
     self.sortActual = function() {
         if (!self.config.useExternalSorting) {
-            var tempData = self.data.slice(0);
-            angular.forEach(tempData, function(item, i) {
-                var e = self.rowMap[i];
-                if (e !== undefined) {
-                    var v = self.rowCache[e];
-                    if (v !== undefined) {
-                        item.preSortSelected = v.selected;
-                        item.preSortIndex = i;
-                    }
-                }
-            });
-            sortService.Sort(self.config.sortInfo, tempData);
-            angular.forEach(tempData, function(item, i) {
-                self.rowCache[i].entity = item;
-                self.rowCache[i].selected = item.preSortSelected;
-                self.rowMap[item.preSortIndex] = i;
-                delete item.preSortSelected;
-                delete item.preSortIndex;
-            });
+            self.rowCache = sortService.Sort(self.config.sortInfo, self.rowCache.slice(0));
         }
     };
 
@@ -2073,7 +2213,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 var w = col.width + colwidths;
                 if (col.pinned) {
                     addCol(col);
-                    var newLeft = i > 0 ? (scrollLeft + totalLeft) : scrollLeft;
+                    var newLeft = scrollLeft + totalLeft;
                     domUtilityService.setColLeft(col, newLeft, self);
                     totalLeft += col.width;
                 } else {
@@ -2229,7 +2369,9 @@ var ngRange = function (top, bottom) {
     this.topRow = top;
     this.bottomRow = bottom;
 };
-var ngRow = function (entity, config, selectionProvider, rowIndex, $utils) {
+var ngRow = function (entity, expandCallback, config, selectionProvider, rowIndex, $utils, depth, hasChildren, isExpanded) {
+	var row = selectionProvider.getRenderedRow(entity);
+
 	this.entity = entity;
 	this.config = config;
 	this.selectionProvider = selectionProvider;
@@ -2241,8 +2383,25 @@ var ngRow = function (entity, config, selectionProvider, rowIndex, $utils) {
 	this.afterSelectionChange = config.afterSelectionChangeCallback;
 	this.offsetTop = this.rowIndex * config.rowHeight;
 	this.rowDisplayIndex = 0;
+
+	this.selected = row.selected || false;
+
+	//set information related to hierarchy
+	this.depth = depth;
+	this.expandCallback = expandCallback;
+	this.hasChildren = hasChildren;
+	this.isExpanded = (isExpanded || row.isExpanded) || false;
+    this.isLastChild = row.isLastChild;
 };
 
+ngRow.prototype.toggleExpand = function () {
+	this.isExpanded = this.isExpanded ? false : true;
+	if (this.orig) {
+		this.orig.isExpanded = this.isExpanded;
+	}
+	//callback to refresh the renderedRows
+	this.expandCallback();
+};
 ngRow.prototype.setSelection = function (isSelected) {
 	this.selectionProvider.setSelection(this, isSelected);
 	this.selectionProvider.lastClickedRow = this;
@@ -2276,7 +2435,7 @@ ngRow.prototype.toggleSelected = function (event) {
 	return false;
 };
 ngRow.prototype.alternatingRowClass = function () {
-	var isEven = (this.rowIndex % 2) === 0;
+	var isEven = (this.renderedRowIndex % 2) === 0;
 	var classes = {
 		'ngRow' : true,
 		'selected': this.selected,
@@ -2291,7 +2450,7 @@ ngRow.prototype.getProperty = function (path) {
 	return this.utils.evalProperty(this.entity, path);
 };
 ngRow.prototype.copy = function () {
-	this.clone = new ngRow(this.entity, this.config, this.selectionProvider, this.rowIndex, this.utils);
+	this.clone = new ngRow(this.entity, this.expandCallback, this.config, this.selectionProvider, this.rowIndex, this.utils, this.depth, this.hasChildren, this.isExpanded);
 	this.clone.isClone = true;
 	this.clone.elm = this.elm;
 	this.clone.orig = this;
@@ -2301,8 +2460,9 @@ ngRow.prototype.setVars = function (fromRow) {
 	fromRow.clone = this;
 	this.entity = fromRow.entity;
 	this.selected = fromRow.selected;
-    this.orig = fromRow;
+	this.orig = fromRow;
 };
+
 var ngRowFactory = function (grid, $scope, domUtilityService, rtlUtilityService, $templateCache, $utils) {
     var self = this;
     // we cache rows when they are built, and then blow the cache away when sorting
@@ -2332,13 +2492,13 @@ var ngRowFactory = function (grid, $scope, domUtilityService, rtlUtilityService,
 
     // @entity - the data item
     // @rowIndex - the index of the row
-    self.buildEntityRow = function(entity, rowIndex) {
+    self.buildEntityRow = function(entity, rowIndex, depth, hasChildren, isExpanded) {
         // build the row
-        return new ngRow(entity, self.rowConfig, self.selectionProvider, rowIndex, $utils);
+        return new ngRow(entity, self.renderedChange, self.rowConfig, self.selectionProvider, rowIndex, $utils, depth, hasChildren, isExpanded);
     };
 
     self.buildAggregateRow = function(aggEntity, rowIndex) {
-        var agg = self.aggCache[aggEntity.aggIndex]; // first check to see if we've already built it 
+        var agg = self.aggCache[aggEntity.aggIndex]; // first check to see if we've already built it
         if (!agg) {
             // build the row
             agg = new ngAggregate(aggEntity, self, self.rowConfig.rowHeight, grid.config.groupsCollapsedByDefault);
@@ -2402,24 +2562,84 @@ var ngRowFactory = function (grid, $scope, domUtilityService, rtlUtilityService,
     };
 
     self.renderedChangeNoGroups = function () {
-        var rowArr = [];
-        for (var i = self.renderedRange.topRow; i < self.renderedRange.bottomRow; i++) {
-            if (grid.filteredRows[i]) {
-                grid.filteredRows[i].rowIndex = i;
-                grid.filteredRows[i].offsetTop = i * grid.config.rowHeight;
-                rowArr.push(grid.filteredRows[i]);
+        var numberOfRowsToRender = self.renderedRange.bottomRow - self.renderedRange.topRow;
+        //Number of rows picked up for rendering (note that only top level rows are considered)
+        var topRowsCount = 0;
+        var rowIndex = self.renderedRange.topRow;
+        var renderedRowIndex = self.renderedRange.topRow;
+
+        var rowsToRender = [];
+
+        while (topRowsCount < numberOfRowsToRender) {
+            var row = grid.filteredRows[rowIndex];
+            if (row) {
+                row.offsetTop = renderedRowIndex * grid.config.rowHeight;
+                rowsToRender.push(row);
+                ++renderedRowIndex;
+                ++rowIndex;
+                
+                //if the row has children and is collapsed, skip children (rows with greater depth)
+                if (row.isExpanded === false) {
+                    while(grid.filteredRows[rowIndex] && grid.filteredRows[rowIndex].depth > row.depth) {
+                        ++rowIndex;
+                    }
+                }
+
+                if (row.depth === 0) {
+                    ++topRowsCount;
+                }
+            } else {
+                break;
             }
         }
-        grid.setRenderedRows(rowArr);
+
+        grid.setRenderedRows(rowsToRender);
     };
 
     self.fixRowCache = function () {
-        var newLen = grid.data.length;
-        grid.rowCache.length = grid.rowMap.length = newLen;
-        for (var i = 0; i < newLen; i++) {
-            grid.rowMap[i] = i;
-            grid.rowCache[i] = grid.rowFactory.buildEntityRow(grid.data[i], i);
+        var hierarchySize = self.getHierarchySize(grid.data);
+
+        grid.rowCache.length = hierarchySize;
+        grid.rowMap.length = hierarchySize;
+
+        var index = 0;
+        angular.forEach(grid.data, function(entry){
+            index = self.fixHierarchyCache(entry, index, 0);
+        });
+    };
+
+    self.getHierarchySize = function(hierarchy) {
+        var size = hierarchy.length;
+        angular.forEach(hierarchy, function(entry) {
+            size += self.getHierarchySize(self.getChildren(entry));
+        });
+
+        return size;
+    };
+
+    self.fixHierarchyCache = function(entry, index, depth) {
+        var children = self.getChildren(entry);
+
+        grid.rowMap[index] = index;
+        grid.rowCache[index] = grid.rowFactory.buildEntityRow(entry, index, depth, children.length !== 0, false, depth === 0 ? true : false);
+
+        ++index;
+        angular.forEach(children, function(child) {
+            index = self.fixHierarchyCache(child, index, depth + 1);
+        });
+
+        return index;
+    };
+
+    self.getChildren = function(entry) {
+        if (grid.config.entryChildProperty) {
+            var children = entry[grid.config.entryChildProperty];
+            if (children && Array.isArray(children)) {
+                return children;
+            }
         }
+
+        return [];
     };
 
     //magical recursion. it works. I swear it. I figured it out in the shower one day.
@@ -2553,7 +2773,7 @@ var ngRowFactory = function (grid, $scope, domUtilityService, rtlUtilityService,
     }
 };
 
-var ngSearchProvider = function ($scope, grid, $filter) {
+var ngSearchProvider = function ($scope, grid, $filter, sortService) {
     var self = this,
         searchConditions = [];
 
@@ -2643,15 +2863,76 @@ var ngSearchProvider = function ($scope, grid, $filter) {
         if (searchConditions.length === 0) {
             grid.filteredRows = grid.rowCache;
         } else {
-            grid.filteredRows = grid.rowCache.filter(function(row) {
-                return filterFunc(row.entity);
-            });
+            var row;
+            var filterFlags = [];
+            filterFlags.length = grid.rowCache.length;
+
+            //check filter for each row individually (no impact from children)
+            for (var i = 0; i < grid.rowCache.length; ++i) {
+                row = grid.rowCache[i];
+                filterFlags[i] = filterFunc(row.entity);
+            }
+
+            //check if a child makes the row visible
+            //start with the last item so we only have to check the items of depth+1 for each selected row
+            for (var j = filterFlags.length - 1; j >= 0; --j) {
+                //if it matches the filter condition, no need to check its children, it's already visible
+                if (filterFlags[j]) {
+                    continue;
+                }
+
+                //not visible through the filter, try to find a direct child that is visible
+                row = grid.rowCache[j];
+                var childIndex = j + 1;
+                while (grid.rowCache[childIndex] && grid.rowCache[childIndex].depth > row.depth) {
+                    if (grid.rowCache[childIndex].depth === row.depth + 1) {
+                        filterFlags[j] |= filterFlags[childIndex];
+                    }
+                    ++childIndex;
+                }
+            }
+
+            //fill filteredRows with visible rows (filter flag set to 'true')
+            grid.filteredRows = [];
+            for (var k = 0; k < grid.rowCache.length; ++k) {
+                if (filterFlags[k]) {
+                    grid.filteredRows.push(grid.rowCache[k]);
+                }
+            }
+
+            //fix index for filtered (visible) rows
+            for (var l = 0; l < grid.filteredRows.length; l++)
+            {
+                grid.filteredRows[l].rowIndex = l;
+            }
         }
-        for (var i = 0; i < grid.filteredRows.length; i++)
-        {
-            grid.filteredRows[i].rowIndex = i;
-            
+
+
+        // Determine if a row is the last child in a group of rows under same parent.
+        //
+        // To do so, for each depth, starting from the bottom of array (grid.filteredRows) it will determine 
+        // if the row is the last child.
+        var currentDepth = sortService.getMaximumRowDepth(grid.filteredRows);
+        while (currentDepth !== 0) {
+            var isLastChild = true;
+            for (var n = grid.filteredRows.length - 1; n >=0; n--) {
+                var currentRow = grid.filteredRows[n];
+
+                // First time we hit a row with that depth? Then it's last child of group.
+                if (isLastChild && currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = true;
+                    isLastChild = false;
+                // Other then last child but same depth? All other children in that group are flagged as not last child.
+                } else if (currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = false;
+                // We are entering another group then reset the isLastChild flag.
+                } else if (currentRow.depth < currentDepth) {
+                    isLastChild = true;
+                }
+            }
+            currentDepth--;
         }
+
         grid.rowFactory.filteredRowsChanged();
     };
 
@@ -2754,6 +3035,7 @@ var ngSearchProvider = function ($scope, grid, $filter) {
         }
     });
 };
+
 var ngSelectionProvider = function (grid, $scope, $parse) {
     var self = this;
     self.multi = grid.config.multiSelect;
@@ -2862,6 +3144,18 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
         return isSelected;
     };
 
+    //Does essentially the same thing as self.getSelection above *but* returns
+    //the actual ngRow with all its information, not just its selection state.
+    self.getRenderedRow = function (entity) {
+        var row = $.grep($scope.renderedRows, function(renderedRow) {
+            if (renderedRow) {
+                return renderedRow.entity === entity;
+            }
+        });
+
+        return row || {};
+    };
+
     // just call this func and hand it the rowItem you want to select (or de-select)    
     self.setSelection = function (rowItem, isSelected) {
         if(grid.config.enableRowSelection){
@@ -2914,6 +3208,7 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
         }
     };
 };
+
 var ngStyleProvider = function($scope, grid) {
     $scope.headerCellStyle = function(col) {
         return { "height": col.headerRowHeight + "px" };
@@ -3210,6 +3505,11 @@ ngGridDirectives.directive('ngGrid', ['$compile', '$filter', '$templateCache', '
                                 $scope.$emit("ngGridEventData", grid.gridId);
                             };
 
+                            //The 'public' interface of gridOptions does not expose the 'watchData' property
+                            //this property must be set to 'deep' in order for a hierarchical data structure to
+                            //be shown and updated correctly in ng-grid.
+                            //If this implementation changes, we will need to make sure we can still support this.
+                            //Or, if we need higher performance, alternatives will have to be developed.
                             if (options.watchData === 'deep') {
                                 $scope.$parent.$watch(options.data, dataWatcher, true);
                             }
@@ -3239,6 +3539,61 @@ ngGridDirectives.directive('ngGrid', ['$compile', '$filter', '$templateCache', '
                         //now use the manager to assign the event handlers
                         grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout);
 
+                        // method for user to obtain the list of expanded row primary keys
+                        options.getExpandedKeys = function() {
+                            var expandedKeys = [];
+                            if (grid.config.primaryKey) {                            
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.isExpanded) {
+                                        expandedKeys.push(row.entity[grid.config.primaryKey]);
+                                    }
+                                });
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to get expanded keys.');
+                            }
+                            return expandedKeys;
+                        };
+                        // method for user to obtain the list of select row primary keys
+                        options.getSelectedKeys = function() {
+                            var selectedKeys = [];
+                            if (grid.config.primaryKey) {
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.selected) {
+                                        selectedKeys.push(row.entity[grid.config.primaryKey]);
+                                    }
+                                });
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to get selected keys.');
+                            }
+                            return selectedKeys;                            
+                        };
+                        // method for user to expand a row by primary key value
+                        options.expandRowByKey = function(value) {
+                            if (grid.config.primaryKey) {                            
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.entity[grid.config.primaryKey] === value && row.isExpanded === false) {
+                                        row.toggleExpand();
+                                    }
+                                });                          
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to expand rows by key.');
+                            }
+                        };
+                        // method for user to select a row by primary key value
+                        options.selectRowByKey = function(value) {
+                            if (grid.config.primaryKey) {
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.entity[grid.config.primaryKey] === value) {
+                                        if (row.clone) {
+                                            row.clone.setSelection(true);
+                                        }
+                                        row.setSelection(true);
+                                    }
+                                }); 
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to select rows by key.');
+                            }
+                        };
                         // method for user to select a specific row programatically
                         options.selectRow = function (rowIndex, state) {
                             if (grid.rowCache[rowIndex]) {

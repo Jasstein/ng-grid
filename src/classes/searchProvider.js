@@ -1,4 +1,4 @@
-﻿var ngSearchProvider = function ($scope, grid, $filter) {
+var ngSearchProvider = function ($scope, grid, $filter, sortService) {
     var self = this,
         searchConditions = [];
 
@@ -131,6 +131,33 @@
                 grid.filteredRows[l].rowIndex = l;
             }
         }
+
+
+        // Determine if a row is the last child in a group of rows under same parent.
+        //
+        // To do so, for each depth, starting from the bottom of array (grid.filteredRows) it will determine 
+        // if the row is the last child.
+        var currentDepth = sortService.getMaximumRowDepth(grid.filteredRows);
+        while (currentDepth !== 0) {
+            var isLastChild = true;
+            for (var n = grid.filteredRows.length - 1; n >=0; n--) {
+                var currentRow = grid.filteredRows[n];
+
+                // First time we hit a row with that depth? Then it's last child of group.
+                if (isLastChild && currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = true;
+                    isLastChild = false;
+                // Other then last child but same depth? All other children in that group are flagged as not last child.
+                } else if (currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = false;
+                // We are entering another group then reset the isLastChild flag.
+                } else if (currentRow.depth < currentDepth) {
+                    isLastChild = true;
+                }
+            }
+            currentDepth--;
+        }
+
         grid.rowFactory.filteredRowsChanged();
     };
 

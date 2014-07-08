@@ -101,7 +101,7 @@
         //Number of rows picked up for rendering (note that only top level rows are considered)
         var topRowsCount = 0;
         var rowIndex = self.renderedRange.topRow;
-        var renderedRowIndex = 0;
+        var renderedRowIndex = self.renderedRange.topRow;
 
         var rowsToRender = [];
 
@@ -111,19 +111,13 @@
                 row.offsetTop = renderedRowIndex * grid.config.rowHeight;
                 rowsToRender.push(row);
                 ++renderedRowIndex;
-
-                if (row.isExpanded === true) {
-                    //check children (increment to next line)
-                    ++rowIndex;
-                } else if (row.isExpanded === false) {
-                    //skip children (skip until a row with equal or lower depth is found (sibbling or parent))
-                    ++rowIndex;
+                ++rowIndex;
+                
+                //if the row has children and is collapsed, skip children (rows with greater depth)
+                if (row.isExpanded === false) {
                     while(grid.filteredRows[rowIndex] && grid.filteredRows[rowIndex].depth > row.depth) {
                         ++rowIndex;
                     }
-                } else {
-                    //check sibblings (this row does not have a 'isExpanded' property and therefore has no children)
-                    ++rowIndex;
                 }
 
                 if (row.depth === 0) {
@@ -144,14 +138,14 @@
         grid.rowMap.length = hierarchySize;
 
         var index = 0;
-        _.each(grid.data, function(entry){
+        angular.forEach(grid.data, function(entry){
             index = self.fixHierarchyCache(entry, index, 0);
         });
     };
 
     self.getHierarchySize = function(hierarchy) {
         var size = hierarchy.length;
-        _.each(hierarchy, function(entry) {
+        angular.forEach(hierarchy, function(entry) {
             size += self.getHierarchySize(self.getChildren(entry));
         });
 
@@ -165,7 +159,7 @@
         grid.rowCache[index] = grid.rowFactory.buildEntityRow(entry, index, depth, children.length !== 0, false, depth === 0 ? true : false);
 
         ++index;
-        _.each(children, function(child) {
+        angular.forEach(children, function(child) {
             index = self.fixHierarchyCache(child, index, depth + 1);
         });
 
