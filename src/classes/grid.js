@@ -269,7 +269,22 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 return !e[NG_HIDDEN];
             }).length * self.config.rowHeight;
         } else {
-            calculatedHeight = self.filteredRows.length * self.config.rowHeight;
+            var visibleRowCount = 0;
+            var rowIndex = 0;
+            while (rowIndex < self.filteredRows.length) {
+                var row = self.filteredRows[rowIndex];
+                ++visibleRowCount;
+                ++rowIndex;
+
+                //if the row has children and is collapsed, skip children (rows with greater depth)
+                if (row.isExpanded === false) {
+                    while(self.filteredRows[rowIndex] && self.filteredRows[rowIndex].depth > row.depth) {
+                        ++rowIndex;
+                    }
+                }
+            }    
+
+            calculatedHeight = visibleRowCount * self.config.rowHeight;
         }
         return calculatedHeight;
     };
@@ -284,27 +299,36 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
     //self funcs
     self.setRenderedRows = function (newRows) {
         $scope.renderedRows.length = newRows.length;
-        for (var i = 0; i < newRows.length; i++) {
-            if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
-                $scope.renderedRows[i] = newRows[i].copy();
-                $scope.renderedRows[i].collapsed = newRows[i].collapsed;
-                if (!newRows[i].isAggRow) {
+        if (newRows.length > 0) {
+            //Since the expanded/collapsed state of parent rows can prevent some rows from being visible,
+            //we need a new 'rendered row index' to render alternating rows correctly
+            //'rowIndex' below is still required for correct navigation with arrow keys
+            var renderedRowIndex = newRows[0].rowIndex;
+
+            for (var i = 0; i < newRows.length; i++) {
+                if (!$scope.renderedRows[i] || (newRows[i].isAggRow || $scope.renderedRows[i].isAggRow)) {
+                    $scope.renderedRows[i] = newRows[i].copy();
+                    $scope.renderedRows[i].collapsed = newRows[i].collapsed;
+                    if (!newRows[i].isAggRow) {
+                        $scope.renderedRows[i].setVars(newRows[i]);
+                    }
+                } else {
                     $scope.renderedRows[i].setVars(newRows[i]);
                 }
-            } else {
-                $scope.renderedRows[i].setVars(newRows[i]);
-            }
-            $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
-            $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
-            $scope.renderedRows[i].selected = newRows[i].selected;
-            newRows[i].renderedRowIndex = i;
+                $scope.renderedRows[i].renderedRowIndex = renderedRowIndex++;
+                $scope.renderedRows[i].rowIndex = newRows[i].rowIndex;
+                $scope.renderedRows[i].offsetTop = newRows[i].offsetTop;
+                $scope.renderedRows[i].selected = newRows[i].selected;
+                newRows[i].renderedRowIndex = i;
 
-            //renderedRows reuses the same set of existing ngRow when updating the data,
-            //as for the three line above (rowIndex, offsetTop, selected), we need to
-            //copy over information related to hierarchy in those rows
-            $scope.renderedRows[i].hasChildren = newRows[i].hasChildren;
-            $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
-            $scope.renderedRows[i].depth = newRows[i].depth;
+                //renderedRows reuses the same set of existing ngRow when updating the data,
+                //as for the three line above (rowIndex, offsetTop, selected), we need to
+                //copy over information related to hierarchy in those rows
+                $scope.renderedRows[i].hasChildren = newRows[i].hasChildren;
+                $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
+                $scope.renderedRows[i].depth = newRows[i].depth;
+                $scope.renderedRows[i].isLastChild = newRows[i].isLastChild;
+            }
         }
         self.refreshDomSizes();
         $scope.$emit('ngGridEventRows', newRows);
