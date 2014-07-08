@@ -20,7 +20,7 @@ var ngRow = function (entity, expandCallback, config, selectionProvider, rowInde
 	this.expandCallback = expandCallback;
 	this.hasChildren = hasChildren;
 	this.isExpanded = (isExpanded || row.isExpanded) || false;
-
+    this.isLastChild = row.isLastChild;
 };
 
 ngRow.prototype.toggleExpand = function () {
@@ -64,7 +64,7 @@ ngRow.prototype.toggleSelected = function (event) {
 	return false;
 };
 ngRow.prototype.alternatingRowClass = function () {
-	var isEven = (this.rowIndex % 2) === 0;
+	var isEven = (this.renderedRowIndex % 2) === 0;
 	var classes = {
 		'ngRow' : true,
 		'selected': this.selected,
