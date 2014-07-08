@@ -2,7 +2,7 @@
 * ng-grid JavaScript Library
 * Authors: https://github.com/angular-ui/ng-grid/blob/master/README.md 
 * License: MIT (http://www.opensource.org/licenses/mit-license.php)
-* Compiled At: 07/08/2014 10:16
+* Compiled At: 07/08/2014 10:31
 ***********************************************/
 (function(window, $) {
 'use strict';
@@ -1689,7 +1689,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
             $scope.selectionProvider = new ngSelectionProvider(self, $scope, $parse);
             $scope.domAccessProvider = new ngDomAccessProvider(self);
             self.rowFactory = new ngRowFactory(self, $scope, domUtilityService, rtlUtilityService, $templateCache, $utils);
-            self.searchProvider = new ngSearchProvider($scope, self, $filter);
+            self.searchProvider = new ngSearchProvider($scope, self, $filter, sortService);
             self.styleProvider = new ngStyleProvider($scope, self);
             $scope.$watch('configGroups', function(a) {
               var tempArr = [];
@@ -2574,7 +2574,6 @@ var ngSearchProvider = function ($scope, grid, $filter, sortService) {
             currentDepth--;
         }
 
-        grid.rowFactory.filteredRowsChanged();
         grid.rowFactory.filteredRowsChanged();
     };
     var evalObject = function (obj, columnName) {
