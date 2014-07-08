@@ -142,6 +142,21 @@ var ngMoveSelectionHandler = function($scope, elm, evt, grid) {
       }
     }
     
+    //try to collapse the row if it's expanded and try to expand the row if it's collapsed
+    if (charCode === 37) {
+        var row = items[rowIndex];
+        if (row.isExpanded === true) {
+            row.toggleExpand();
+            $scope.$digest();            
+        }
+    } else if (charCode === 39) {
+        var row = items[rowIndex];        
+        if (row.isExpanded === false) {
+            row.toggleExpand();
+            $scope.$digest();            
+        }
+    }
+    
     if ($scope.enableCellSelection) {
         setTimeout(function(){
             $scope.domAccessProvider.focusCellElement($scope, $scope.renderedColumns.indexOf(visibleCols[newColumnIndex]));
