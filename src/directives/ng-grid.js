@@ -101,6 +101,61 @@
                         //now use the manager to assign the event handlers
                         grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout);
 
+                        // method for user to obtain the list of expanded row primary keys
+                        options.getExpandedKeys = function() {
+                            var expandedKeys = [];
+                            if (grid.config.primaryKey) {                            
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.isExpanded) {
+                                        expandedKeys.push(row.entity[grid.config.primaryKey]);
+                                    }
+                                });
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to get expanded keys.');
+                            }
+                            return expandedKeys;
+                        };
+                        // method for user to obtain the list of select row primary keys
+                        options.getSelectedKeys = function() {
+                            var selectedKeys = [];
+                            if (grid.config.primaryKey) {
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.selected) {
+                                        selectedKeys.push(row.entity[grid.config.primaryKey]);
+                                    }
+                                });
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to get selected keys.');
+                            }
+                            return selectedKeys;                            
+                        };
+                        // method for user to expand a row by primary key value
+                        options.expandRowByKey = function(value) {
+                            if (grid.config.primaryKey) {                            
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.entity[grid.config.primaryKey] === value && row.isExpanded === false) {
+                                        row.toggleExpand();
+                                    }
+                                });                          
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to expand rows by key.');
+                            }
+                        };
+                        // method for user to select a row by primary key value
+                        options.selectRowByKey = function(value) {
+                            if (grid.config.primaryKey) {
+                                angular.forEach(grid.rowCache, function(row) {
+                                    if (row.entity[grid.config.primaryKey] === value) {
+                                        if (row.clone) {
+                                            row.clone.setSelection(true);
+                                        }
+                                        row.setSelection(true);
+                                    }
+                                }); 
+                            } else {
+                                console.warn('No primary key set in grid options. Unable to select rows by key.');
+                            }
+                        };
                         // method for user to select a specific row programatically
                         options.selectRow = function (rowIndex, state) {
                             if (grid.rowCache[rowIndex]) {
