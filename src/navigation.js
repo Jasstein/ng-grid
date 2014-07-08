@@ -143,17 +143,17 @@ var ngMoveSelectionHandler = function($scope, elm, evt, grid) {
     }
     
     //try to collapse the row if it's expanded and try to expand the row if it's collapsed
-    var row;
+    var currentRow;
     if (charCode === 37) {
-        row = items[rowIndex];
-        if (row.isExpanded === true) {
-            row.toggleExpand();
+        currentRow = items[rowIndex];
+        if (currentRow.isExpanded === true) {
+            currentRow.toggleExpand();
             $scope.$digest();            
         }
     } else if (charCode === 39) {
-        row = items[rowIndex];        
-        if (row.isExpanded === false) {
-            row.toggleExpand();
+        currentRow = items[rowIndex];        
+        if (currentRow.isExpanded === false) {
+            currentRow.toggleExpand();
             $scope.$digest();            
         }
     }
