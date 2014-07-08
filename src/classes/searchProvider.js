@@ -141,17 +141,17 @@ var ngSearchProvider = function ($scope, grid, $filter, sortService) {
         while (currentDepth !== 0) {
             var isLastChild = true;
             for (var n = grid.filteredRows.length - 1; n >=0; n--) {
-                var row = grid.filteredRows[n];
+                var currentRow = grid.filteredRows[n];
 
                 // First time we hit a row with that depth? Then it's last child of group.
-                if (isLastChild && row.depth === currentDepth) {
-                    row.isLastChild = true;
+                if (isLastChild && currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = true;
                     isLastChild = false;
                 // Other then last child but same depth? All other children in that group are flagged as not last child.
-                } else if (row.depth === currentDepth) {
-                    row.isLastChild = false;
+                } else if (currentRow.depth === currentDepth) {
+                    currentRow.isLastChild = false;
                 // We are entering another group then reset the isLastChild flag.
-                } else if (row.depth < currentDepth) {
+                } else if (currentRow.depth < currentDepth) {
                     isLastChild = true;
                 }
             }
