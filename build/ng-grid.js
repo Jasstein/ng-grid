@@ -2,7 +2,7 @@
 * ng-grid JavaScript Library
 * Authors: https://github.com/angular-ui/ng-grid/blob/master/README.md 
 * License: MIT (http://www.opensource.org/licenses/mit-license.php)
-* Compiled At: 07/08/2014 13:13
+* Compiled At: 07/09/2014 11:24
 ***********************************************/
 (function(window, $) {
 'use strict';
@@ -2776,13 +2776,14 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
         return isSelected;
     };
     self.getRenderedRow = function (entity) {
-        var row = $.grep($scope.renderedRows, function(renderedRow) {
-            if (renderedRow) {
-                return renderedRow.entity === entity;
+        for (var index = 0; index < $scope.renderedRows.length; ++index) {
+            var renderedRow = $scope.renderedRows[index];
+            if (renderedRow && renderedRow.entity === entity) {
+                return renderedRow;
             }
-        });
+        }
 
-        return row || {};
+        return {};
     };
     self.setSelection = function (rowItem, isSelected) {
         if(grid.config.enableRowSelection){
