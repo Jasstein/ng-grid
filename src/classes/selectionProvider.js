@@ -109,13 +109,14 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
     //Does essentially the same thing as self.getSelection above *but* returns
     //the actual ngRow with all its information, not just its selection state.
     self.getRenderedRow = function (entity) {
-        var row = $.grep($scope.renderedRows, function(renderedRow) {
-            if (renderedRow) {
-                return renderedRow.entity === entity;
+        for (var index = 0; index < $scope.renderedRows.length; ++index) {
+            var renderedRow = $scope.renderedRows[index];
+            if (renderedRow && renderedRow.entity === entity) {
+                return renderedRow;
             }
-        });
+        }
 
-        return row || {};
+        return {};
     };
 
     // just call this func and hand it the rowItem you want to select (or de-select)    
