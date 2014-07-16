@@ -14,6 +14,7 @@
     self.rowConfig = {
         enableRowSelection: grid.config.enableRowSelection,
         rowClasses: grid.config.rowClasses,
+        rowOptions: grid.config.rowOptions,
         selectedItems: $scope.selectedItems,
         selectWithCheckboxOnly: grid.config.selectWithCheckboxOnly,
         beforeSelectionChangeCallback: grid.config.beforeSelectionChange,
