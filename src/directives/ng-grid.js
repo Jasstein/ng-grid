@@ -1,4 +1,4 @@
-﻿ngGridDirectives.directive('ngGrid', ['$compile', '$filter', '$templateCache', '$sortService', '$domUtilityService', '$rtlUtilityService', '$utilityService', '$timeout', '$parse', '$http', '$q', function ($compile, $filter, $templateCache, sortService, domUtilityService, rtlUtilityService, $utils, $timeout, $parse, $http, $q) {
+ngGridDirectives.directive('ngGrid', ['$compile', '$filter', '$templateCache', '$sortService', '$domUtilityService', '$rtlUtilityService', '$utilityService', '$timeout', '$parse', '$http', '$q', function ($compile, $filter, $templateCache, sortService, domUtilityService, rtlUtilityService, $utils, $timeout, $parse, $http, $q) {
     var ngGridDirective = {
         scope: true,
         compile: function() {
@@ -99,7 +99,7 @@
                         //walk the element's graph and the correct properties on the grid
                         domUtilityService.AssignGridContainers($scope, iElement, grid);
                         //now use the manager to assign the event handlers
-                        grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout);
+                        grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout, rtlUtilityService);
 
                         // method for user to obtain the list of expanded row primary keys
                         options.getExpandedKeys = function() {
