@@ -97,6 +97,9 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
         //The height of the header row in pixels.
         headerRowHeight: 30,
 
+        //Extension point for row behaviors
+        rowOptions: undefined,
+        
         //Define a header row template for further customization. See github wiki for more details.
         headerRowTemplate: undefined,
 
@@ -328,6 +331,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
                 $scope.renderedRows[i].depth = newRows[i].depth;
                 $scope.renderedRows[i].isLastChild = newRows[i].isLastChild;
+                $scope.renderedRows[i].rowOptions = newRows[i].rowOptions;                
             }
         }
         self.refreshDomSizes();
