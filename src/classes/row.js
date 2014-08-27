@@ -21,6 +21,7 @@ var ngRow = function (entity, expandCallback, config, selectionProvider, rowInde
 	this.hasChildren = hasChildren;
 	this.isExpanded = (isExpanded || row.isExpanded) || false;
     this.isLastChild = row.isLastChild;
+    this.rowOptions = config.rowOptions;
 };
 
 ngRow.prototype.toggleExpand = function () {
