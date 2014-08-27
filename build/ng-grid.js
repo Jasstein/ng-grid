@@ -2,7 +2,7 @@
 * ng-grid JavaScript Library
 * Authors: https://github.com/angular-ui/ng-grid/blob/master/README.md 
 * License: MIT (http://www.opensource.org/licenses/mit-license.php)
-* Compiled At: 07/09/2014 11:24
+* Compiled At: 08/27/2014 14:43
 ***********************************************/
 (function(window, $) {
 'use strict';
@@ -1044,23 +1044,25 @@ ngDomAccessProvider.prototype.selectionHandlers = function ($scope, elm) {
         return true;
     });
 };
-var ngEventProvider = function (grid, $scope, domUtilityService, $timeout) {
+var ngEventProvider = function (grid, $scope, domUtilityService, $timeout, rtlUtilityService) {
     var self = this;
     self.colToMove = undefined;
     self.groupToMove = undefined;
     self.assignEvents = function() {
         if (grid.config.jqueryUIDraggable && !grid.config.enablePinning) {
-            grid.$groupPanel.droppable({
+            grid.$groupPanel.find('.ngHeaderCell:not(.pinned)').droppable({
                 addClasses: false,
                 drop: function(event) {
                     self.onGroupDrop(event);
                 }
             });
         } else {
-            grid.$groupPanel.on('mousedown', self.onGroupMouseDown).on('dragover', self.dragOver).on('drop', self.onGroupDrop);
-            grid.$topPanel.on('mousedown', '.ngHeaderScroller', self.onHeaderMouseDown).on('dragover', '.ngHeaderScroller', self.dragOver);
+            grid.$groupPanel.on('mousedown', '.ngHeaderCell:not(.pinned)', self.onGroupMouseDown).on('dragover', '.ngHeaderCell:not(.pinned)', self.dragOver).on('drop', '.ngHeaderCell:not(.pinned)', self.onGroupDrop);
+
+            grid.$topPanel.on('mousedown', '.ngHeaderCell:not(.pinned)', self.onHeaderMouseDown).on('dragover', '.ngHeaderCell:not(.pinned)', self.dragOver);
+
             if (grid.config.enableColumnReordering) {
-                grid.$topPanel.on('drop', '.ngHeaderScroller', self.onHeaderDrop);
+               grid.$topPanel.on('drop', '.ngHeaderCell:not(.pinned)', self.onHeaderDrop);
             }
         }
         $scope.$watch('renderedColumns', function() {
@@ -1071,41 +1073,150 @@ var ngEventProvider = function (grid, $scope, domUtilityService, $timeout) {
             }
         });
     };
+    var dragged;
     self.dragStart = function(evt){
       evt.dataTransfer.setData('text', ''); 
+
+        dragged = evt.target;
+        self.styleDragStart(evt, evt.currentTarget);
     };
+    self.dragEnd = function(evt) {
+        self.styleDragEnd(evt.currentTarget);
+    };
+    self.dragEnter = function(evt) {
+        count++;
+
+        var target = evt.target;
+
+        if (!self.isDroppable(evt.target)) {
+            return;
+        }
+
+        self.styleDragEnter(dragged, target, { left: evt.clientX });
+    };
+    self.dragLeave = function(evt) {
+        self.styleDragLeave(evt.target);
+    }
     self.dragOver = function(evt) {
         evt.preventDefault();
     };
+    self.drop = function() {
+        self.styleDrop();
+    };
+
+    self.reset = function() {
+        grid.$topPanel.find('.ngHeaderDropBefore').removeClass('ngHeaderDropBefore');
+        grid.$topPanel.find('.ngHeaderDropAfter').removeClass('ngHeaderDropAfter');
+    };
+    self.isDroppable = function(target) {
+        var headerContainer = $(target).closest('.ngHeaderCell');
+        if (!headerContainer) {
+            return false;
+        }
+
+        var headerScope = angular.element(headerContainer).scope();
+        if (headerScope) {
+            if (self.colToMove.col === headerScope.col || headerScope.col.pinned) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    };
+    var count = 0;
+    self.styleDragStart = function(event, target) {
+        count = 0;
+        if (!self.colToMove.col.pinned) {
+            $(target).addClass('ngHeaderDragHighlight');
+        }
+
+        self.onHeaderMouseDown(event);
+    };   
+    self.styleDragEnd = function(target) {
+        $(target).removeClass('ngHeaderDragHighlight');
+
+        self.reset();
+    };   
+    self.styleDragEnter = function(source, target, position) {
+        self.reset();
+
+        if (self.isColumnInvalid()) {
+            return;
+        }
+
+        if (!self.isDroppable(target)) {
+            return;
+        }
+        var actualTarget = $(target).closest('.ngHeaderCell');
+
+        if ($(source).offset().left < position.left) {
+            if (rtlUtilityService.isRtl) {
+                $(actualTarget).addClass('ngHeaderDropBefore');
+            } else  {
+                $(actualTarget).addClass('ngHeaderDropAfter');
+            }
+        } else if ($(source).offset().left > position.left) {
+            if (rtlUtilityService.isRtl) {
+                $(actualTarget).addClass('ngHeaderDropAfter');
+            } else  {
+                $(actualTarget).addClass('ngHeaderDropBefore');
+            }
+        }
+    }
+    self.styleDragLeave = function() {
+        if (--count === 0) {
+            self.reset();
+        }
+    }
+    self.styleDrop = function() {
+        self.reset();
+    };
     self.setDraggables = function() {
         if (!grid.config.jqueryUIDraggable) {
-            var columns = grid.$root.find('.ngHeaderSortColumn'); 
+            var columns = grid.$root.find('.ngHeaderCell:not(.pinned)'); 
             angular.forEach(columns, function(col){
-                if(col.className && col.className.indexOf("ngHeaderSortColumn") !== -1){
+                if(col.className && col.className.indexOf("ngHeaderCell") !== -1){
                     col.setAttribute('draggable', 'true');
                     if (col.addEventListener) { 
                         col.addEventListener('dragstart', self.dragStart);
+                        col.addEventListener('dragend', self.dragEnd);
+                        col.addEventListener('dragenter', self.dragEnter);
+                        col.addEventListener('dragleave', self.dragLeave);
+                        col.addEventListener('drop', self.drop);
                     }
                 }
             });
             if (navigator.userAgent.indexOf("MSIE") !== -1){
-                grid.$root.find('.ngHeaderSortColumn').bind('selectstart', function () { 
+                grid.$root.find('.ngHeaderCell:not(.pinned)').bind('selectstart', function () { 
                     this.dragDrop(); 
                     return false; 
-                });	
+                }); 
             }
         } else {
-            grid.$root.find('.ngHeaderSortColumn').draggable({
+            grid.$root.find('.ngHeaderCell:not(.pinned)').draggable({
                 helper: 'clone',
                 appendTo: 'body',
                 stack: 'div',
                 addClasses: false,
                 start: function(event) {
-                    self.onHeaderMouseDown(event);
+                    self.styleDragStart(event, this);
+                },
+                stop: function() {
+                    self.styleDragEnd(this);
                 }
             }).droppable({
+                tolerance: 'pointer',
                 drop: function(event) {
+                    self.styleDrop();
+
                     self.onHeaderDrop(event);
+                },
+                out: function() {
+                    self.styleDragLeave();
+                },
+                over: function(event, ui) {
+                    count++;
+                    self.styleDragEnter(ui.draggable, event.target, ui.position);
                 }
             });
         }
@@ -1172,17 +1283,20 @@ var ngEventProvider = function (grid, $scope, domUtilityService, $timeout) {
         }
     };
     self.onHeaderMouseDown = function(event) {
-        var headerContainer = $(event.target).closest('.ngHeaderSortColumn');
+        var headerContainer = $(event.target).closest('.ngHeaderCell');
         var headerScope = angular.element(headerContainer).scope();
         if (headerScope) {
             self.colToMove = { header: headerContainer, col: headerScope.col };
         }
     };
+    self.isColumnInvalid = function() {
+        return !self.colToMove || self.colToMove.col.pinned;
+    }
     self.onHeaderDrop = function(event) {
-        if (!self.colToMove || self.colToMove.col.pinned) {
+        if (self.isColumnInvalid()) {
             return;
         }
-        var headerContainer = $(event.target).closest('.ngHeaderSortColumn');
+        var headerContainer = $(event.target).closest('.ngHeaderCell');
         var headerScope = angular.element(headerContainer).scope();
         if (headerScope) {
             if (self.colToMove.col === headerScope.col || headerScope.col.pinned) {
@@ -1328,6 +1442,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
         groups: [],
         groupsCollapsedByDefault: true,
         headerRowHeight: 30,
+        rowOptions: undefined,
         headerRowTemplate: undefined,
         jqueryUIDraggable: false,
         jqueryUITheme: false,
@@ -1481,6 +1596,7 @@ var ngGrid = function ($scope, options, sortService, domUtilityService, rtlUtili
                 $scope.renderedRows[i].isExpanded = newRows[i].isExpanded;
                 $scope.renderedRows[i].depth = newRows[i].depth;
                 $scope.renderedRows[i].isLastChild = newRows[i].isLastChild;
+                $scope.renderedRows[i].rowOptions = newRows[i].rowOptions;
             }
         }
         self.refreshDomSizes();
@@ -2082,6 +2198,7 @@ var ngRow = function (entity, expandCallback, config, selectionProvider, rowInde
 	this.hasChildren = hasChildren;
 	this.isExpanded = (isExpanded || row.isExpanded) || false;
     this.isLastChild = row.isLastChild;
+    this.rowOptions = config.rowOptions;
 };
 
 ngRow.prototype.toggleExpand = function () {
@@ -2168,6 +2285,7 @@ var ngRowFactory = function (grid, $scope, domUtilityService, rtlUtilityService,
     self.rowConfig = {
         enableRowSelection: grid.config.enableRowSelection,
         rowClasses: grid.config.rowClasses,
+        rowOptions: grid.config.rowOptions,
         selectedItems: $scope.selectedItems,
         selectWithCheckboxOnly: grid.config.selectWithCheckboxOnly,
         beforeSelectionChangeCallback: grid.config.beforeSelectionChange,
@@ -2778,8 +2896,11 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
     self.getRenderedRow = function (entity) {
         for (var index = 0; index < $scope.renderedRows.length; ++index) {
             var renderedRow = $scope.renderedRows[index];
-            if (renderedRow && renderedRow.entity === entity) {
-                return renderedRow;
+            if (renderedRow) {
+                if (renderedRow.entity === entity || 
+                    (grid.config.primaryKey && renderedRow.entity[grid.config.primaryKey] === entity[grid.config.primaryKey])) {
+                    return renderedRow;
+                }
             }
         }
 
@@ -3136,7 +3257,7 @@ ngGridDirectives.directive('ngGrid', ['$compile', '$filter', '$templateCache', '
                         }
                         iElement.append($compile($templateCache.get('gridTemplate.html'))($scope));
                         domUtilityService.AssignGridContainers($scope, iElement, grid);
-                        grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout);
+                        grid.eventProvider = new ngEventProvider(grid, $scope, domUtilityService, $timeout, rtlUtilityService);
                         options.getExpandedKeys = function() {
                             var expandedKeys = [];
                             if (grid.config.primaryKey) {
