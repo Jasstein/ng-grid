@@ -111,8 +111,11 @@ var ngSelectionProvider = function (grid, $scope, $parse) {
     self.getRenderedRow = function (entity) {
         for (var index = 0; index < $scope.renderedRows.length; ++index) {
             var renderedRow = $scope.renderedRows[index];
-            if (renderedRow && renderedRow.entity === entity) {
-                return renderedRow;
+            if (renderedRow) {
+                if (renderedRow.entity === entity || 
+                    (grid.config.primaryKey && renderedRow.entity[grid.config.primaryKey] === entity[grid.config.primaryKey])) {
+                    return renderedRow;                    
+                }
             }
         }
 
