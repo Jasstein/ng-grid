@@ -900,7 +900,7 @@ module.service('gridUtil', ['$log', '$window', '$document', '$http', '$templateC
 
 
   ['width', 'height'].forEach(function (name) {
-    var capsName = angular.uppercase(name.charAt(0)) + name.substr(1);
+    var capsName = name.charAt(0).toUpperCase() + name.substr(1);
     s['element' + capsName] = function (elem, extra) {
       var e = elem;
       if (e && typeof(e.length) !== 'undefined' && e.length) {
