@@ -1,4 +1,5 @@
 (function(){
+var globalCompiledCellTemplates = new Map();
 
 angular.module('ui.grid')
 .factory('Grid', ['$q', '$compile', '$parse', 'gridUtil', 'uiGridConstants', 'GridOptions', 'GridColumn', 'GridRow', 'GridApi', 'rowSorter', 'rowSearcher', 'GridRenderContainer', '$timeout','ScrollEvent',
@@ -947,7 +948,12 @@ angular.module('ui.grid')
     var html = col.cellTemplate.replace(uiGridConstants.MODEL_COL_FIELD, self.getQualifiedColField(col));
     html = html.replace(uiGridConstants.COL_FIELD, 'grid.getCellValue(row, col)');
 
-    var compiledElementFn = $compile(html);
+    var compiledElementFn = globalCompiledCellTemplates.get(html);
+    if (!compiledElementFn) {
+      compiledElementFn = $compile(html);
+      globalCompiledCellTemplates.set(html, compiledElementFn);
+    }
+
     col.compiledElementFn = compiledElementFn;
 
     if (col.compiledElementFnDefer) {

@@ -1,5 +1,7 @@
 (function() {
 
+var isURL = /^https?:\/\//i;
+
 var module = angular.module('ui.grid');
 
 var bindPolyfill;
@@ -357,7 +359,7 @@ module.service('gridUtil', ['$log', '$window', '$document', '$http', '$templateC
 
       // If the template is an element, return the element
       try {
-        if (angular.element(template).length > 0) {
+        if (!isURL.test(template)) {
           return $q.when(template).then(s.postProcessTemplate).catch(angular.noop);
         }
       }
